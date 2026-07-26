@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Git Ctrl · 极客控制台</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+        /* ===== 全局重置 & 变量 ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #0a0e14; --bg-secondary: #11161f; --bg-card: #161c28;
+            --bg-hover: #1e2638; --bg-active: #243044; --border-color: #2a3448;
+            --border-light: #3a4660; --text-primary: #d4e6ff; --text-secondary: #8aa0c8;
+            --text-muted: #5a7298; --accent-green: #00ff41; --accent-green-dim: #1a8a3a;
+            --accent-blue: #58a6ff; --accent-cyan: #00d4ff; --accent-orange: #ff8c00;
+            --accent-red: #ff4757; --accent-purple: #b57bff;
+            --shadow: 0 4px 24px rgba(0,0,0,0.6); --radius: 8px;
+            --font: 'Fira Code','JetBrains Mono','Consolas',monospace;
+            --transition: 0.2s ease;
+        }
+        html { font-size: 14px; }
+        body {
+            font-family: var(--font); background: var(--bg-primary); color: var(--text-primary);
+            height: 100vh; overflow: hidden; display: flex; flex-direction: column; user-select: none;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+
+        /* ===== 顶部栏 ===== */
+        .topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 20px; background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color); flex-shrink: 0; height: 52px; gap: 16px;
+        }
+        .topbar-left { display: flex; align-items: center; gap: 16px; }
+        .logo { font-size: 18px; font-weight: 700; color: var(--accent-green); letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
+        .logo-icon { display: inline-block; width: 22px; height: 22px; background: var(--accent-green); clip-path: polygon(50% 0%,0% 100%,100% 100%); opacity: 0.8; }
+        .repo-path {
+            font-size: 13px; color: var(--text-secondary); background: var(--bg-primary);
+            padding: 4px 14px; border-radius: 20px; border: 1px solid var(--border-color);
+            font-weight: 400; letter-spacing: 0.3px; max-width: 280px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+        }
+        .repo-path:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+        .topbar-right { display: flex; align-items: center; gap: 12px; }
+        .branch-indicator {
+            display: flex; align-items: center; gap: 8px; background: var(--bg-primary);
+            padding: 4px 14px 4px 10px; border-radius: 20px; border: 1px solid var(--border-color); font-size: 13px;
+        }
+        .branch-indicator .label { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .branch-indicator .name { color: var(--accent-cyan); font-weight: 600; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+        .status-dot.clean { background: var(--accent-green); }
+        .status-dot.dirty { background: var(--accent-orange); }
+        .status-dot.ahead { background: var(--accent-blue); }
+        .status-dot.behind { background: var(--accent-red); }
+        .topbar-actions { display: flex; gap: 6px; }
+
+        /* ===== 主体布局 ===== */
+        .main-layout { display: flex; flex: 1; overflow: hidden; }
+
+        /* ===== 左侧边栏 ===== */
+        .sidebar {
+            width: 240px; background: var(--bg-secondary); border-right: 1px solid var(--border-color);
+            display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
+        }
+        .sidebar-header {
+            padding: 14px 16px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px;
+            color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+        }
+        .sidebar-header .badge { font-size: 10px; background: var(--bg-active); padding: 1px 10px; border-radius: 12px; color: var(--text-secondary); }
+        .branch-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+        .branch-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 16px; cursor: pointer; transition: var(--transition); font-size: 13px;
+            border-left: 2px solid transparent; gap: 8px;
+        }
+        .branch-item:hover { background: var(--bg-hover); }
+        .branch-item.active { background: var(--bg-active); border-left-color: var(--accent-cyan); }
+        .branch-item .name { color: var(--text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .branch-item .name .remote { color: var(--text-muted); font-size: 11px; }
+        .branch-item .marker { font-size: 11px; color: var(--accent-cyan); font-weight: 600; }
+        .branch-item .branch-actions { display: flex; gap: 4px; opacity: 0; transition: var(--transition); }
+        .branch-item:hover .branch-actions { opacity: 1; }
+        .branch-item .branch-actions button {
+            background: none; border: none; color: var(--text-muted); cursor: pointer;
+            font-size: 14px; padding: 0 4px; transition: var(--transition); font-family: var(--font);
+        }
+        .branch-item .branch-actions button:hover { color: var(--accent-red); }
+        .sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border-color); flex-shrink: 0; display: flex; gap: 6px; }
+
+        /* ===== 右侧主区域 ===== */
+        .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-primary); }
+        .toolbar {
+            display: flex; align-items: center; gap: 8px; padding: 10px 20px;
+            background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0; flex-wrap: wrap;
+        }
+        .toolbar .sep { width: 1px; height: 28px; background: var(--border-color); margin: 0 6px; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px;
+            border: 1px solid var(--border-color); border-radius: var(--radius); background: var(--bg-card);
+            color: var(--text-primary); font-family: var(--font); font-size: 12px; font-weight: 500;
+            cursor: pointer; transition: var(--transition); letter-spacing: 0.2px; white-space: nowrap;
+        }
+        .btn:hover { background: var(--bg-hover); border-color: var(--border-light); }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: var(--accent-green-dim); border-color: var(--accent-green); color: var(--accent-green); }
+        .btn-primary:hover { background: #1a9a4a; box-shadow: 0 0 20px rgba(0,255,65,0.15); }
+        .btn-blue { background: #1a3a6a; border-color: var(--accent-blue); color: var(--accent-blue); }
+        .btn-blue:hover { background: #1a4a8a; box-shadow: 0 0 20px rgba(88,166,255,0.15); }
+        .btn-danger { border-color: var(--accent-red); color: var(--accent-red); }
+        .btn-danger:hover { background: rgba(255,71,87,0.15); }
+        .btn-cyan { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+        .btn-cyan:hover { background: rgba(0,212,255,0.1); box-shadow: 0 0 20px rgba(0,212,255,0.1); }
+        .btn-sm { padding: 4px 12px; font-size: 11px; }
+        .btn-icon { padding: 6px 10px; font-size: 15px; line-height: 1; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+        .input {
+            background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius);
+            padding: 6px 14px; color: var(--text-primary); font-family: var(--font); font-size: 13px;
+            outline: none; transition: var(--transition); min-width: 120px;
+        }
+        .input:focus { border-color: var(--accent-cyan); box-shadow: 0 0 0 3px rgba(0,212,255,0.1); }
+        .input::placeholder { color: var(--text-muted); }
+
+        /* ===== 内容面板 ===== */
+        .panel-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 16px 20px; gap: 16px; }
+        .status-summary { display: flex; gap: 20px; flex-shrink: 0; flex-wrap: wrap; }
+        .stat-item {
+            display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary);
+            background: var(--bg-card); padding: 4px 16px 4px 12px; border-radius: 20px; border: 1px solid var(--border-color);
+        }
+        .stat-item .num { font-weight: 700; color: var(--text-primary); font-size: 15px; }
+        .stat-item .num.green { color: var(--accent-green); }
+        .stat-item .num.orange { color: var(--accent-orange); }
+        .stat-item .num.blue { color: var(--accent-blue); }
+        .stat-item .num.red { color: var(--accent-red); }
+        .panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 0; }
+        .panel-card {
+            background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius);
+            display: flex; flex-direction: column; overflow: hidden; min-height: 0;
+        }
+        .panel-card .card-header {
+            padding: 10px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+            color: var(--text-muted); border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; background: var(--bg-card);
+        }
+        .panel-card .card-body { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+        /* 文件列表 */
+        .file-item {
+            display: flex; align-items: center; padding: 6px 16px; gap: 10px;
+            font-size: 13px; cursor: pointer; transition: var(--transition); border-left: 2px solid transparent;
+        }
+        .file-item:hover { background: var(--bg-hover); }
+        .file-item .status-badge {
+            font-size: 10px; padding: 1px 8px; border-radius: 10px; font-weight: 600;
+            flex-shrink: 0; letter-spacing: 0.3px;
+        }
+        .file-item .status-badge.modified { background: rgba(255,140,0,0.2); color: var(--accent-orange); }
+        .file-item .status-badge.staged { background: rgba(0,255,65,0.15); color: var(--accent-green); }
+        .file-item .status-badge.untracked { background: rgba(88,166,255,0.15); color: var(--accent-blue); }
+        .file-item .status-badge.deleted { background: rgba(255,71,87,0.15); color: var(--accent-red); }
+        .file-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+        .file-item .file-actions { display: flex; gap: 4px; opacity: 0; transition: var(--transition); }
+        .file-item:hover .file-actions { opacity: 1; }
+        .file-item .file-actions button {
+            background: none; border: none; color: var(--text-muted); cursor: pointer;
+            font-size: 13px; padding: 0 4px; transition: var(--transition); font-family: var(--font);
+        }
+        .file-item .file-actions button:hover { color: var(--accent-cyan); }
+        .file-item .file-actions button.add:hover { color: var(--accent-green); }
+        .file-item .file-actions button.remove:hover { color: var(--accent-red); }
+        .file-item .file-actions button:disabled { opacity: 0.3; cursor: not-allowed; }
+        .file-empty { padding: 30px 16px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+        /* 提交历史 */
+        .commit-list { padding: 6px 0; }
+        .commit-item {
+            display: flex; align-items: stretch; padding: 4px 16px; gap: 12px;
+            transition: var(--transition); cursor: default; position: relative;
+        }
+        .commit-item:hover { background: var(--bg-hover); }
+        .commit-graph {
+            display: flex; flex-direction: column; align-items: center; width: 24px;
+            flex-shrink: 0; padding: 6px 0 2px; position: relative;
+        }
+        .commit-graph .line { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); background: var(--border-color); }
+        .commit-graph .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border-light); background: var(--bg-card); z-index: 1; flex-shrink: 0; margin: 4px 0; }
+        .commit-graph .dot.current { background: var(--accent-cyan); border-color: var(--accent-cyan); box-shadow: 0 0 12px rgba(0,212,255,0.3); }
+        .commit-graph .dot.main { background: var(--accent-green); border-color: var(--accent-green); }
+        .commit-graph .dot.feature { background: var(--accent-purple); border-color: var(--accent-purple); }
+        .commit-graph .dot.hotfix { background: var(--accent-orange); border-color: var(--accent-orange); }
+        .commit-info { flex: 1; padding: 6px 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .commit-info .hash { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+        .commit-info .message { font-size: 13px; color: var(--text-primary); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .commit-info .meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 12px; flex-wrap: wrap; }
+        .commit-info .meta .author { color: var(--text-secondary); }
+        .commit-info .meta .time { color: var(--text-muted); }
+        .commit-info .meta .branch-tag { background: var(--bg-active); padding: 0 8px; border-radius: 10px; color: var(--accent-cyan); font-size: 10px; }
+
+        /* 提交输入区 */
+        .commit-input-area {
+            display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border-color);
+            background: var(--bg-card); flex-shrink: 0; align-items: center;
+        }
+        .commit-input-area .input { flex: 1; min-width: 80px; }
+
+        /* ===== 差异查看器 ===== */
+        .diff-viewer {
+            display: none; position: fixed; bottom: 0; left: 0; right: 0; height: 45vh;
+            background: var(--bg-secondary); border-top: 2px solid var(--border-color);
+            z-index: 100; flex-direction: column; animation: slideUp 0.25s ease;
+        }
+        .diff-viewer.open { display: flex; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .diff-viewer .diff-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 20px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; background: var(--bg-card);
+        }
+        .diff-viewer .diff-header .title { font-size: 13px; color: var(--text-secondary); }
+        .diff-viewer .diff-header .close-btn { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 0 8px; transition: var(--transition); font-family: var(--font); }
+        .diff-viewer .diff-header .close-btn:hover { color: var(--text-primary); }
+        .diff-viewer .diff-body {
+            flex: 1; overflow: auto; padding: 12px 20px; font-size: 13px; line-height: 1.7;
+            font-family: var(--font); white-space: pre-wrap; word-break: break-all; color: var(--text-secondary);
+        }
+        .diff-viewer .diff-body .diff-line { padding: 0 8px; border-radius: 2px; }
+        .diff-viewer .diff-body .diff-line.add { background: rgba(0,255,65,0.08); color: var(--accent-green); }
+        .diff-viewer .diff-body .diff-line.del { background: rgba(255,71,87,0.08); color: var(--accent-red); }
+
+        /* ===== 模态框 ===== */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(4px);
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius);
+            padding: 28px 32px; max-width: 420px; width: 90%; box-shadow: var(--shadow); animation: modalIn 0.2s ease;
+        }
+        @keyframes modalIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .modal-box h3 { font-size: 16px; margin-bottom: 8px; color: var(--text-primary); font-weight: 600; }
+        .modal-box p { color: var(--text-secondary); font-size: 13px; margin-bottom: 16px; }
+        .modal-box .input { width: 100%; margin-bottom: 16px; }
+        .modal-box .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+        /* ===== 状态栏 ===== */
+        .statusbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 6px 20px; background: var(--bg-secondary); border-top: 1px solid var(--border-color);
+            flex-shrink: 0; height: 34px; font-size: 12px; color: var(--text-muted);
+        }
+        .statusbar .left { display: flex; align-items: center; gap: 16px; }
+        .statusbar .right { display: flex; align-items: center; gap: 12px; }
+        .statusbar .status-msg { color: var(--text-secondary); font-size: 12px; }
+        .statusbar .status-msg .highlight { color: var(--accent-cyan); }
+
+        /* ===== 加载遮罩 ===== */
+        .loading-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10,14,20,0.8); z-index: 300; align-items: center; justify-content: center; flex-direction: column; gap: 16px;
+        }
+        .loading-overlay.open { display: flex; }
+        .loading-overlay .spinner {
+            width: 40px; height: 40px; border: 3px solid var(--border-color);
+            border-top-color: var(--accent-green); border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-overlay .text { color: var(--text-secondary); font-size: 13px; }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 900px) {
+            .panel-grid { grid-template-columns: 1fr; }
+            .sidebar { width: 200px; }
+            .repo-path { max-width: 140px; font-size: 12px; }
+            .topbar { flex-wrap: wrap; height: auto; padding: 8px 12px; gap: 8px; }
+            .toolbar { padding: 8px 12px; gap: 6px; }
+            .toolbar .sep { display: none; }
+            .panel-container { padding: 12px; gap: 12px; }
+            .commit-input-area { flex-wrap: wrap; }
+            .commit-input-area .input { min-width: 60px; }
+        }
+        @media (max-width: 600px) {
+            .sidebar { width: 0; overflow: hidden; border-right: none; }
+            .sidebar.open { width: 200px; border-right: 1px solid var(--border-color); position: absolute; left: 0; top: 52px; bottom: 0; z-index: 50; background: var(--bg-secondary); }
+            .topbar-left .repo-path { display: none; }
+            .topbar-right .branch-indicator .label { display: none; }
+            .stat-item { font-size: 11px; padding: 2px 12px 2px 8px; }
+            .stat-item .num { font-size: 13px; }
+            .btn { padding: 4px 10px; font-size: 11px; }
+            .btn-icon { padding: 4px 8px; font-size: 13px; }
+            .diff-viewer { height: 50vh; }
+            .modal-box { padding: 20px; }
+        }
+
+        .hidden { display: none !important; }
+        .flash { animation: flash 0.6s ease; }
+        @keyframes flash { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-left">
+            <div class="logo"><span class="logo-icon"></span>GitCtrl</div>
+            <span class="repo-path" id="repoPath" title="点击切换仓库">~/projects/my-repo</span>
+        </div>
+        <div class="topbar-right">
+            <div class="branch-indicator">
+                <span class="label">分支</span>
+                <span class="name" id="currentBranchName">main</span>
+                <span class="status-dot clean" id="statusDot"></span>
+            </div>
+            <div class="topbar-actions">
+                <button class="btn btn-sm btn-icon" id="sidebarToggle" title="切换侧栏">≡</button>
+                <button class="btn btn-sm btn-icon" id="refreshBtn" title="刷新状态">↻</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header"><span>分支</span><span class="badge" id="branchCount">0</span></div>
+            <div class="branch-list" id="branchList"></div>
+            <div class="sidebar-footer">
+                <button class="btn btn-sm btn-cyan" id="newBranchBtn" style="flex:1;">+ 新建</button>
+                <button class="btn btn-sm btn-danger" id="deleteBranchBtn" style="flex:1;">删除</button>
+            </div>
+        </aside>
+
+        <main class="content">
+            <div class="toolbar">
+                <button class="btn btn-primary" id="commitBtn">提交</button>
+                <button class="btn btn-blue" id="pushBtn">推送</button>
+                <button class="btn btn-cyan" id="pullBtn">拉取</button>
+                <span class="sep"></span>
+                <button class="btn btn-sm" id="stageAllBtn">暂存全部</button>
+                <button class="btn btn-sm" id="unstageAllBtn">取消暂存</button>
+                <span class="sep"></span>
+                <button class="btn btn-sm" id="fetchBtn">获取</button>
+                <button class="btn btn-sm" id="mergeBtn">合并</button>
+                <span style="flex:1;"></span>
+                <span style="font-size:11px;color:var(--text-muted);" id="lastUpdateTime">更新: 等待中</span>
+            </div>
+
+            <div class="panel-container">
+                <div class="status-summary" id="statusSummary">
+                    <div class="stat-item"><span>未暂存</span><span class="num orange" id="unstagedCount">0</span></div>
+                    <div class="stat-item"><span>已暂存</span><span class="num green" id="stagedCount">0</span></div>
+                    <div class="stat-item"><span>提交</span><span class="num blue" id="commitCount">0</span></div>
+                    <div class="stat-item"><span>分支</span><span class="num" style="color:var(--accent-cyan);" id="branchCountStat">0</span></div>
+                </div>
+
+                <div class="panel-grid">
+                    <div class="panel-card">
+                        <div class="card-header"><span>文件状态</span><span style="font-size:11px;color:var(--text-muted);" id="fileStatusHint">未暂存</span></div>
+                        <div class="card-body" id="fileList"></div>
+                        <div class="commit-input-area">
+                            <input class="input" id="commitMessageInput" placeholder="提交信息..." />
+                            <button class="btn btn-primary btn-sm" id="commitActionBtn">提交</button>
+                        </div>
+                    </div>
+
+                    <div class="panel-card">
+                        <div class="card-header"><span>提交历史</span><span style="font-size:11px;color:var(--text-muted);" id="historyHint">共 0 次提交</span></div>
+                        <div class="card-body" id="commitHistory"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="diff-viewer" id="diffViewer">
+        <div class="diff-header">
+            <span class="title" id="diffTitle">diff --git a/file b/file</span>
+            <button class="close-btn" id="diffCloseBtn">✕</button>
+        </div>
+        <div class="diff-body" id="diffBody"><span class="text-muted">点击文件查看差异</span></div>
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-box">
+            <h3 id="modalTitle">新建分支</h3>
+            <p id="modalDesc">输入新分支的名称</p>
+            <input class="input" id="modalInput" placeholder="分支名称..." />
+            <div class="modal-actions">
+                <button class="btn" id="modalCancelBtn">取消</button>
+                <button class="btn btn-primary" id="modalConfirmBtn">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="text" id="loadingText">加载中...</div>
+    </div>
+
+    <footer class="statusbar">
+        <div class="left"><span class="status-msg" id="statusMsg">● 就绪</span></div>
+        <div class="right">
+            <span id="gitVersion">GitCtrl v1.0</span>
+            <span>|</span>
+            <span id="repoStatus">未加载</span>
+        </div>
+    </footer>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

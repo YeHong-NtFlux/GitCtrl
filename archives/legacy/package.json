@@ -1,0 +1,43 @@
+﻿{
+    "name":  "git-ctrl",
+    "version":  "1.0.0",
+    "description":  "鏋佸椋庢牸 Git 鍙鍖栨帶鍒跺彴",
+    "main":  "main.js",
+    "scripts":  {
+                    "start":  "electron .",
+                    "build":  "electron-builder",
+                    "dist":  "electron-builder --win",
+                    "postinstall":  "electron-builder install-app-deps"
+                },
+    "author":  "YeHong-NtFlux \u003cfrankoc415@gmail.com\u003e",
+    "license":  "MIT",
+    "devDependencies":  {
+                            "electron":  "^43.2.0",
+                            "electron-builder":  "^24.13.3"
+                        },
+    "build":  {
+                  "appId":  "com.yehong.gitctrl",
+                  "productName":  "GitCtrl",
+                  "directories":  {
+                                      "output":  "dist"
+                                  },
+                  "files":  [
+                                "main.js",
+                                "preload.js",
+                                "index.html",
+                                "renderer.js",
+                                "src/**/*",
+                                "assets/**/*"
+                            ],
+                  "win":  {
+                              "target":  "nsis",
+                              "icon":  "assets/icon.ico"
+                          },
+                  "nsis":  {
+                               "oneClick":  false,
+                               "allowToChangeInstallationDirectory":  true,
+                               "createDesktopShortcut":  true,
+                               "shortcutName":  "GitCtrl"
+                           }
+              }
+}
