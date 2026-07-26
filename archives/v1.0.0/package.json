@@ -1,6 +1,6 @@
 ﻿{
     "name":  "git-ctrl",
-    "version":  " False False",
+    "version":  "1.0.0",
     "description":  "鏋佸椋庢牸 Git 鍙鍖栨帶鍒跺彴",
     "main":  "main.js",
     "scripts":  {
